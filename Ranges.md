@@ -1,3 +1,11 @@
+---
+tags:
+  - type/article
+  - topic/boundaries
+  - concept/half-open-range
+  - concept/off-by-one
+  - first-principles
+---
 # Ranges
 
 ## Half-open Ranges
@@ -37,31 +45,37 @@ Another common way to refer to this type of range is "inclusive," as the range i
 ### Loop Example
 ```c
 for (int i = 0; i <= 4; i++) { 
-    // visit each insertion point, including the tail
+    // each value from start to end
 }
 ```
 
-In this example, `start = 0` and `end = 4`. The `4` is inclusive and represents a valid *insertion point* — not a valid *access* index. If this maps to a buffer with 4 existing items, a closed range loop gives you 5 total iterations (`0, 1, 2, 3, 4`): the 4 positions between and before the existing items, plus the appending slot at the tail. (For reading the 4 existing items you would still use the half-open `i < 4`, since index `4` is out of bounds for access.)
+In this example, `start = 0` and `end = 4`. The `4` is inclusive and part of the valid range. Unlike the half-open version, the loop runs five times:
+* `i = 0`
+* `i = 1`
+* `i = 2`
+* `i = 3`
+* `i = 4`
 
 ### Advantages
-While half-open ranges dominate raw indexing, closed ranges provide essential physical and mathematical guardrails in low-level systems: 
 
-* **Reaches the top of a fixed-width type:** A half-open loop over every value of a type needs `end = max + 1`, which the type cannot represent. To visit all 256 values of a `uint8_t`, `i < 256` never terminates because `256` overflows to `0`, so the counter never reaches it. A closed range expresses the intent directly as `i <= 255`, though note the counter itself must be *wider* than the range (e.g. `int i`) — otherwise `i++` wraps from `255` back to `0` and even the closed loop spins forever.
-* **Protects memory layout during insertion:** By allowing `index <= length`, it defines a precise boundary where you can safely overwrite an existing slot or append right at the tail without leaving illegal, uninitialized gaps in your memory blocks.
-* **Maps perfectly to human data:** It natively aligns with real-world, 1-indexed human systems like calendar dates, game dice, or UI pagination screens where the ending value is fully intended to be interactive.
-* **Stays symmetric under negation:** Closed intervals map onto themselves when flipped or negated (e.g. `[-5, 5]` mirrors to `[-5, 5]`), whereas the half-open `[-5, 5)` becomes `(-5, 5]` — preventing the shifted boundaries that cause off-by-one slips during spatial transformations.
+Closed ranges are the natural choice when the final value is meaningful. They offer a few advantages of their own:
+
+* **Represents the maximum value:** A closed range can name a type's largest value as its endpoint, like `[0, 255]` for a `uint8_t`; the half-open form would need `256`, which the type cannot hold.
+* **Includes the endpoint for insertion:** Allowing `index <= length` permits appending at the tail, so the position just past the last element is a valid target.
+* **Maps to human counts:** It fits 1-indexed ranges like calendar dates or dice, where the final value is meant to be used.
+* **Symmetric under negation:** A closed interval mirrors onto itself, so `[-5, 5]` stays `[-5, 5]` when flipped, unlike the half-open `[-5, 5)`.
 
 ## Choosing Between Them
 
 The two ranges are really the same idea seen through one character: the comparison operator. Placed side by side over a buffer of 4 items, the difference is stark:
 
 ```c
-// Half-open: `<` guards ACCESS — every index touches a real element.
+// Half-open: `<` guards access. Every index touches a real element.
 for (int i = 0; i < len; i++) {
     array[i] = 0;              // i = 0, 1, 2, 3   (4 iterations)
 }
 
-// Closed: `<=` reaches the TAIL — the extra step is the append slot.
+// Closed: `<=` reaches the tail. The extra step is the append slot.
 for (int i = 0; i <= len; i++) {
     // i = 0, 1, 2, 3, 4       (5 iterations)
     // i < len  -> an existing element
